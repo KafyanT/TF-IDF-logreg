@@ -1,6 +1,7 @@
 # Colab script — запускать в Google Colab, не как обычный Python-скрипт.
 # pip install -q pyarrow
 
+import gc
 import shutil
 import sys
 
@@ -19,7 +20,10 @@ N_FOLDS  = 5
 MAX_FEAT = 50_000
 TARGET   = 'item_contact'
 
-shutil.copy(f'{DRIVE}/tfidf_from_scratch.py', '/content/tfidf_from_scratch.py')
+src = f'{DRIVE}/tfidf_from_scratch.py'
+if not __import__('os').path.exists(src):
+    raise FileNotFoundError(f'Положи tfidf_from_scratch.py в корень Google Drive ({src})')
+shutil.copy(src, '/content/tfidf_from_scratch.py')
 
 
 def load_parquet(path, columns):
@@ -103,6 +107,7 @@ def compute_ndcg(df, pred_col='pred', label_col=TARGET, k=10):
         idcg   = (ideal / np.log2(np.arange(2, len(ideal) + 2))).sum()
         if idcg > 0:
             scores.append(dcg / idcg)
+    assert scores, 'нет запросов с позитивами в переданной выборке'
     return np.mean(scores)
 
 
@@ -131,8 +136,11 @@ for fold in range(N_FOLDS):
 
     lr = LogisticRegression(C=1.0, max_iter=500, solver='saga', random_state=SEED)
     lr.fit(X_tr, tr[TARGET].values)
+    assert lr.classes_[1] == 1, f'classes_={lr.classes_}'
 
     train.loc[val_idx, 'pred'] = lr.predict_proba(X_val)[:, 1]
+    del X_tr, X_val; gc.collect()
+
     score = compute_ndcg(train.loc[val_idx])
     fold_scores.append(score)
     print(f'Fold {fold}: NDCG@10 = {score:.4f}')
@@ -146,6 +154,7 @@ X_full, X_test = build_tfidf(make_text(train), make_text(test))
 
 lr = LogisticRegression(C=1.0, max_iter=500, solver='saga', random_state=SEED)
 lr.fit(X_full, train[TARGET].values)
+assert lr.classes_[1] == 1, f'classes_={lr.classes_}'
 
 test = test.copy()
 test['score'] = lr.predict_proba(X_test)[:, 1]
