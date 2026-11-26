@@ -86,8 +86,8 @@ def build_tfidf(tr_texts, eval_texts, max_features=MAX_FEAT):
 def compute_ndcg(df, pred_col='pred', label_col=TARGET, k=10):
     """Средний NDCG@k по запросам с хотя бы одним позитивом.
 
-    Tie-breaking: один вектор на весь df, генерируется с фиксированным seed —
-    точно как ndcg_at_k в основном ноутбуке (rng.random(d.height) до группировки).
+    Реализация соответствует ndcg_at_k из основного ноутбука:
+    один tie-вектор rng.random(len(df)) для всего df до группировки.
     """
     tie = np.random.default_rng(SEED).random(len(df))
     df  = df.assign(_tie=tie)
@@ -156,8 +156,8 @@ solution = (
     .reset_index(drop=True)
 )
 
-assert len(solution) == len(test), "дублирующиеся строки в test"
-assert solution.duplicated(['query_id', 'item_id']).sum() == 0, "дублирующиеся пары в solution"
+assert len(solution) == len(test), "часть строк test потеряна в solution"
+assert solution.duplicated(['query_id', 'item_id']).sum() == 0, "дублирующиеся пары (query_id, item_id) в solution"
 
 out = f'{DRIVE}/solution_tfidf_logreg.csv'
 solution.to_csv(out, index=False)
